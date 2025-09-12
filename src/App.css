@@ -1,3 +1,21 @@
+:root {
+  --bg: #ffffff;
+  --fg: #0f172a;
+  --muted: #6b7280;
+  --card: #f5f7fb;
+  --accent: #4c8bf5;
+  --border: rgba(100, 116, 139, 0.28);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --fg: #e5e7eb;
+    --muted: #a3a3a3;
+    --card: #1a1f28;
+    --accent: #86a6ff;
+    --border: rgba(148, 163, 184, 0.28);
+  }
+}
 #root {
   height: 100%;
   width: 100%;
@@ -47,6 +65,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  background: var(--bg, transparent);
+  color: var(--fg, inherit);
 }
 
 .editor-container {
@@ -62,6 +82,8 @@
   overflow: auto;
   box-sizing: border-box;
   padding: 16px;
+  background: var(--bg, transparent);
+  color: var(--fg, inherit);
 }
 
 /* Remove blue focus ring/outlines from editor area */
@@ -120,17 +142,17 @@
 
 /* Bible verse block styles */
 .bible-verse {
-  border: 1px solid #e2e2e2;
+  border: 1px solid var(--border, rgba(100, 116, 139, 0.3));
   border-radius: 8px;
   padding: 8px;
-  background: #fafafa;
+  background: var(--card, #fafafa);
   margin: 8px 0;
   box-sizing: border-box;
   overflow: hidden; /* 내부 입력 박스 라운드가 부모 밖으로 넘치지 않도록 */
 }
 .bible-verse__label {
   font-size: 15px;
-  color: #555;
+  color: var(--muted, #555);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -138,11 +160,11 @@
   display: block;
   width: 100%;
   max-width: 100%;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border, rgba(100, 116, 139, 0.35));
   border-radius: 6px;
   padding: 8px 10px;
   outline: none;
-  background: white;
+  background: var(--bg, #fff);
   box-sizing: border-box; /* padding 포함 가로 계산 */
   margin: 0; /* 기본 margin 제거로 넘침 방지 */
   font-size: 15px;
@@ -150,12 +172,12 @@
   caret-color: #1a73e8; /* 커서 색상 명확히 */
 }
 .bible-verse--resolved {
-  border-left: 4px solid #4c8bf5;
-  background: #f5f9ff;
+  border-left: 4px solid var(--accent, #4c8bf5);
+  background: var(--card, #f5f9ff);
 }
 .bible-verse__header {
   font-size: 13px;
-  color: #4c8bf5;
+  color: var(--accent, #4c8bf5);
   margin-bottom: 6px;
 }
 .bible-verse__line {
@@ -163,7 +185,7 @@
   gap: 8px;
 }
 .bible-verse__verse {
-  color: #4c8bf5;
+  color: var(--accent, #4c8bf5);
 }
 .bible-verse__text {
   line-height: 1.6;
