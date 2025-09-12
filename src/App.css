@@ -1,0 +1,180 @@
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.App {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.editor-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  width: 100%;
+}
+
+.tiptap-editor {
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 16px;
+}
+
+/* Remove blue focus ring/outlines from editor area */
+.tiptap-editor:focus,
+.tiptap-editor:focus-visible,
+.tiptap-editor *:focus,
+.tiptap-editor *:focus-visible {
+  outline: none;
+}
+
+/* ProseMirror root lives inside EditorContent; ensure no outline */
+.tiptap-editor .ProseMirror:focus,
+.tiptap-editor .ProseMirror:focus-visible {
+  outline: none;
+}
+
+/* Soft-wrap long content to avoid horizontal scrolling */
+.tiptap-editor,
+.tiptap-editor .ProseMirror {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Make editor and paragraphs occupy full width */
+.tiptap-editor .ProseMirror {
+  position: relative;
+  width: 100%;
+}
+.tiptap-editor .ProseMirror > * {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure each top-level block stretches full width regardless of content length */
+.tiptap-editor .ProseMirror > * {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Placeholder styles: show only when the entire editor is empty */
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child:last-child::before {
+  content: attr(data-placeholder);
+  color: #9aa0a6;
+  pointer-events: none;
+  height: 0;
+  float: left; /* keep caret visible and prevent layout issues */
+}
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child:last-child {
+  min-height: 1.4em; /* 빈 줄도 한 줄 높이로 전체 폭 확보 */
+}
+
+/* Bible verse block styles */
+.bible-verse {
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fafafa;
+  margin: 8px 0;
+  box-sizing: border-box;
+  overflow: hidden; /* 내부 입력 박스 라운드가 부모 밖으로 넘치지 않도록 */
+}
+.bible-verse__label {
+  font-size: 15px;
+  color: #555;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.bible-verse__input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px 10px;
+  outline: none;
+  background: white;
+  box-sizing: border-box; /* padding 포함 가로 계산 */
+  margin: 0; /* 기본 margin 제거로 넘침 방지 */
+  font-size: 15px;
+  -webkit-text-size-adjust: 100%; /* iOS 자동 글자 확대 방지 */
+  caret-color: #1a73e8; /* 커서 색상 명확히 */
+}
+.bible-verse--resolved {
+  border-left: 4px solid #4c8bf5;
+  background: #f5f9ff;
+}
+.bible-verse__header {
+  font-size: 13px;
+  color: #4c8bf5;
+  margin-bottom: 6px;
+}
+.bible-verse__line {
+  display: flex;
+  gap: 8px;
+}
+.bible-verse__verse {
+  color: #4c8bf5;
+}
+.bible-verse__text {
+  line-height: 1.6;
+}
+.bible-verse--loading {
+  border: 1px dashed #bbb;
+  color: #777;
+  background: #fcfcfc;
+}
+.bible-verse--error {
+  border: 1px solid #ffb3b3;
+  color: #d00;
+  background: #fff5f5;
+}
