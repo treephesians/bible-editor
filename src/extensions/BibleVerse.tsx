@@ -1,6 +1,10 @@
 import { Node, mergeAttributes, InputRule } from "@tiptap/core";
-import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
-import React, { useEffect, useRef, useState } from "react";
+import {
+  ReactNodeViewRenderer,
+  NodeViewWrapper,
+  type NodeViewProps,
+} from "@tiptap/react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 
 export type BibleVerseAttrs = {
   id: string;
@@ -9,22 +13,63 @@ export type BibleVerseAttrs = {
   bookName?: string;
   chapter?: number;
   verse?: number;
-  text?: string;
+  start?: number;
+  end?: number;
+  text?: string | string[];
+  verses?: string; // JSON-encoded [{ verse, text }]
 };
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const InputView: React.FC<{
-  node: any;
-  updateAttributes: (a: Partial<BibleVerseAttrs>) => void;
-}> = ({ node, updateAttributes }) => {
+const InputView: React.FC<
+  Pick<NodeViewProps, "node" | "editor" | "getPos"> & {
+    updateAttributes: (a: Partial<BibleVerseAttrs>) => void;
+  }
+> = ({ node, updateAttributes, editor, getPos }) => {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    const raf = requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      // iOS/Safari에서 즉시 포커스가 무시되는 경우가 있어 raf로 지연
+      el.focus({ preventScroll: true });
+      // 커서를 끝으로 이동해 입력 준비
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [editor]);
+
+  const moveCaretBelowFromInput = () => {
+    try {
+      const pos = typeof getPos === "function" ? getPos() : null;
+      if (pos == null) return;
+      const after = pos + node.nodeSize;
+      const doc = editor.state.doc;
+      const nodeAfter = doc.resolve(after).nodeAfter;
+      if (!nodeAfter || nodeAfter.type.name !== "paragraph") {
+        editor.chain().insertContentAt(after, { type: "paragraph" }).run();
+      }
+      editor
+        .chain()
+        .setTextSelection(after + 1)
+        .focus()
+        .run();
+      // 이동 직후 강제 스크롤로 커서를 가시 영역으로 노출
+      requestAnimationFrame(() => {
+        try {
+          editor.view.dispatch(editor.state.tr.scrollIntoView());
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  };
 
   const requestLookup = () => {
     const id = node.attrs.id as string;
@@ -39,6 +84,9 @@ const InputView: React.FC<{
       data-bible-verse
       className="bible-verse"
       contentEditable={false}
+      onClick={() => {
+        inputRef.current?.focus();
+      }}
     >
       <div className="bible-verse__label">✝️ 성경 블록</div>
       <input
@@ -50,6 +98,9 @@ const InputView: React.FC<{
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
+            e.stopPropagation();
+            // 먼저 커서를 블록 아래 문단으로 이동시켜 키보드 유지
+            moveCaretBelowFromInput();
             requestLookup();
           }
         }}
@@ -62,11 +113,36 @@ const InputView: React.FC<{
   );
 };
 
-const ResolvedView: React.FC<{ node: any }> = ({ node }) => {
-  const { book, bookName, chapter, verse, text } =
+const ResolvedView: React.FC<{ node: NodeViewProps["node"] }> = ({ node }) => {
+  const { book, bookName, chapter, verse, text, verses } =
     node.attrs as BibleVerseAttrs;
   const map: Record<string, string> = { "01": "창세기" };
   const displayName = bookName ?? (book ? map[book] : undefined) ?? "";
+  const baseVerse = Number(verse ?? 1);
+  let pairs: { v: number; t: string }[] = [];
+  if (typeof verses === "string" && verses.length > 0) {
+    try {
+      const arr = JSON.parse(decodeURIComponent(verses));
+      if (Array.isArray(arr)) {
+        pairs = arr
+          .filter(
+            (x) =>
+              x && typeof x.verse === "number" && typeof x.text === "string"
+          )
+          .map((x) => ({ v: x.verse as number, t: x.text as string }));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (pairs.length === 0) {
+    const lines = Array.isArray(text)
+      ? (text as string[])
+      : typeof text === "string"
+      ? (text as string).split("\n")
+      : [];
+    pairs = lines.map((t, idx) => ({ v: baseVerse + idx, t }));
+  }
   return (
     <NodeViewWrapper
       data-bible-verse
@@ -75,19 +151,12 @@ const ResolvedView: React.FC<{ node: any }> = ({ node }) => {
       <div className="bible-verse__header">
         {displayName} {chapter}장
       </div>
-      {Array.isArray(text) ? (
-        (text as any[]).map((t, idx) => (
-          <div key={idx} className="bible-verse__line">
-            <span className="bible-verse__verse">{idx + Number(verse)}</span>
-            <span className="bible-verse__text">{t}</span>
-          </div>
-        ))
-      ) : (
-        <div className="bible-verse__line">
-          <span className="bible-verse__verse">{verse}</span>
-          <span className="bible-verse__text">{text}</span>
+      {pairs.map((p, idx) => (
+        <div key={idx} className="bible-verse__line">
+          <span className="bible-verse__verse">{p.v}</span>
+          <span className="bible-verse__text">{p.t}</span>
         </div>
-      )}
+      ))}
     </NodeViewWrapper>
   );
 };
@@ -96,9 +165,7 @@ const LoadingView: React.FC = () => (
   <NodeViewWrapper
     data-bible-verse
     className="bible-verse bible-verse--loading"
-  >
-    조회 중...
-  </NodeViewWrapper>
+  />
 );
 
 const ErrorView: React.FC = () => (
@@ -107,12 +174,57 @@ const ErrorView: React.FC = () => (
   </NodeViewWrapper>
 );
 
-const BibleVerseReactView: React.FC<any> = (props) => {
-  const { node, updateAttributes } = props;
+type BibleResultDetail = {
+  id: string;
+  result?: {
+    book?: string;
+    bookName?: string;
+    chapter?: number;
+    verse?: number;
+    start?: number;
+    end?: number;
+    text?: string | string[];
+    verses?: { verse: number; text: string }[];
+  };
+};
+
+const BibleVerseReactView: React.FC<NodeViewProps> = (props) => {
+  const { node, updateAttributes, editor, getPos } = props;
   const status: BibleVerseAttrs["status"] = node.attrs.status;
+  const moveCaretBelow = useCallback(() => {
+    try {
+      const pos = typeof getPos === "function" ? getPos() : null;
+      if (pos == null) return;
+      const after = pos + node.nodeSize;
+      const doc = editor.state.doc;
+      const nodeAfter = doc.resolve(after).nodeAfter;
+      if (!nodeAfter || nodeAfter.type.name !== "paragraph") {
+        editor.chain().insertContentAt(after, { type: "paragraph" }).run();
+      }
+      // 이미 selection이 아래에 있으면 재설정하지 않음
+      const { from } = editor.state.selection;
+      if (from !== after + 1) {
+        editor
+          .chain()
+          .setTextSelection(after + 1)
+          .focus()
+          .run();
+      }
+      // 커서가 가려지지 않도록 스크롤
+      requestAnimationFrame(() => {
+        try {
+          editor.view.dispatch(editor.state.tr.scrollIntoView());
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [node, getPos, editor]);
   useEffect(() => {
     const onResult = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { id: string; result: any };
+      const detail = (e as CustomEvent<BibleResultDetail>).detail;
       if (!detail || detail.id !== node.attrs.id) return;
       const res = detail.result;
       if (res && res.verses) {
@@ -123,8 +235,17 @@ const BibleVerseReactView: React.FC<any> = (props) => {
           bookName: res.bookName,
           chapter: res.chapter,
           verse: res.start,
-          text: res.verses.map((v: any) => v.text),
+          start: res.start,
+          end: res.end,
+          text: (res.verses || []).map((v) => v.text),
+          verses: encodeURIComponent(
+            JSON.stringify(
+              (res.verses || []).map((v) => ({ verse: v.verse, text: v.text }))
+            )
+          ),
         });
+        // 렌더 사이클 이후 커서를 블록 아래로 이동
+        setTimeout(moveCaretBelow, 0);
       } else if (res && res.text) {
         updateAttributes({
           status: "resolved",
@@ -134,17 +255,26 @@ const BibleVerseReactView: React.FC<any> = (props) => {
           verse: res.verse,
           text: res.text,
         });
+        setTimeout(moveCaretBelow, 0);
       } else {
         updateAttributes({ status: "error" });
       }
     };
-    window.addEventListener("bible:result", onResult as any);
-    return () => window.removeEventListener("bible:result", onResult as any);
-  }, [node.attrs.id, updateAttributes]);
+    window.addEventListener("bible:result", onResult as EventListener);
+    return () =>
+      window.removeEventListener("bible:result", onResult as EventListener);
+  }, [node.attrs.id, updateAttributes, moveCaretBelow]);
   if (status === "loading") return <LoadingView />;
   if (status === "resolved") return <ResolvedView node={node} />;
   if (status === "error") return <ErrorView />;
-  return <InputView node={node} updateAttributes={updateAttributes} />;
+  return (
+    <InputView
+      node={node}
+      updateAttributes={updateAttributes}
+      editor={editor}
+      getPos={getPos}
+    />
+  );
 };
 
 const BibleVerse = Node.create({
@@ -161,18 +291,45 @@ const BibleVerse = Node.create({
       bookName: { default: null },
       chapter: { default: null },
       verse: { default: null },
+      start: { default: null },
+      end: { default: null },
       text: { default: "" },
+      verses: { default: "" },
     };
   },
   parseHTML() {
     return [
       {
         tag: "div[data-bible-verse]",
-        getAttrs: (el: any) => {
+        getAttrs: (el: Element) => {
           const e = el as HTMLElement;
+          const rawVerses = e.getAttribute("data-verses");
+          let parsedText: string | string[] = "";
+          if (rawVerses && rawVerses.length > 0) {
+            try {
+              const arr: Array<{ verse?: number; text?: string }> = JSON.parse(
+                decodeURIComponent(rawVerses)
+              );
+              // 저장된 것이 객체배열이면 텍스트 배열로 투영
+              if (Array.isArray(arr)) {
+                parsedText = arr.map((x) =>
+                  x && typeof x.text === "string" ? x.text : ""
+                );
+              } else {
+                parsedText = "";
+              }
+            } catch {
+              parsedText = "";
+            }
+          } else {
+            const rawText = e.getAttribute("data-text") || "";
+            parsedText = rawText.includes("\n") ? rawText.split("\n") : rawText;
+          }
           return {
             id: e.getAttribute("data-id") || generateId(),
-            status: (e.getAttribute("data-status") as any) || "input",
+            status:
+              (e.getAttribute("data-status") as BibleVerseAttrs["status"]) ||
+              "input",
             book: e.getAttribute("data-book"),
             bookName: e.getAttribute("data-book-name"),
             chapter: e.getAttribute("data-chapter")
@@ -181,42 +338,73 @@ const BibleVerse = Node.create({
             verse: e.getAttribute("data-verse")
               ? Number(e.getAttribute("data-verse"))
               : null,
-            text: e.getAttribute("data-text") || "",
+            start: e.getAttribute("data-start")
+              ? Number(e.getAttribute("data-start"))
+              : null,
+            end: e.getAttribute("data-end")
+              ? Number(e.getAttribute("data-end"))
+              : null,
+            verses: rawVerses || "",
+            text: parsedText,
           } as Partial<BibleVerseAttrs>;
         },
       },
     ];
   },
   renderHTML({ HTMLAttributes }) {
-    const attrs = HTMLAttributes as any;
+    const attrs = HTMLAttributes as Partial<BibleVerseAttrs> &
+      Record<string, unknown>;
+    const versesAttr =
+      typeof attrs.verses === "string" && attrs.verses.length > 0
+        ? String(attrs.verses)
+        : Array.isArray(attrs.text)
+        ? encodeURIComponent(
+            JSON.stringify(
+              (attrs.text as string[]).map((t, i) => ({
+                verse: Number(attrs.verse ?? 1) + i,
+                text: t,
+              }))
+            )
+          )
+        : "";
     return [
       "div",
       mergeAttributes(HTMLAttributes, {
         "data-bible-verse": "true",
-        "data-id": attrs.id,
-        "data-status": attrs.status,
-        "data-book": attrs.book,
-        "data-book-name": attrs.bookName,
-        "data-chapter": attrs.chapter,
-        "data-verse": attrs.verse,
-        "data-text": attrs.text,
+        "data-id": String(attrs.id ?? ""),
+        "data-status": String(attrs.status ?? "input"),
+        "data-book": String(attrs.book ?? ""),
+        "data-book-name": String(attrs.bookName ?? ""),
+        "data-chapter": attrs.chapter != null ? String(attrs.chapter) : "",
+        "data-verse": attrs.verse != null ? String(attrs.verse) : "",
+        "data-start": attrs.start != null ? String(attrs.start) : "",
+        "data-end": attrs.end != null ? String(attrs.end) : "",
+        // backward-compat: data-text도 함께 유지 (가독 목적)
+        "data-text": Array.isArray(attrs.text)
+          ? (attrs.text as string[]).join("\n")
+          : String(attrs.text ?? ""),
+        "data-verses": versesAttr,
       }),
     ];
   },
   addNodeView() {
-    return ReactNodeViewRenderer(BibleVerseReactView);
+    return ReactNodeViewRenderer(BibleVerseReactView, {
+      stopEvent: () => true,
+    });
   },
   addInputRules() {
     return [
       new InputRule({
         find: /@\s$/,
         handler: ({ chain, range }) => {
+          // 현재 커서 다음 줄에 빈 문단이 자동으로 생기지 않도록 처리 후 포커스 이동
           chain()
             .deleteRange(range)
             .insertContent({
               type: this.name,
               attrs: { id: generateId(), status: "input" },
             })
+            .focus()
             .run();
         },
       }),

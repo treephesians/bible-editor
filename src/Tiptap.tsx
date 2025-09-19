@@ -26,6 +26,7 @@ const Tiptap = () => {
       }),
     ],
     content: "",
+    autofocus: false,
   });
 
   // Send content updates to React Native via window.ReactNativeWebView

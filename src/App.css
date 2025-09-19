@@ -5,6 +5,8 @@
   --card: #f5f7fb;
   --accent: #4c8bf5;
   --border: rgba(100, 116, 139, 0.28);
+  /* Keyboard bottom offset for WebView (can be overridden from RN) */
+  --kb-offset: 0px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -82,6 +84,13 @@
   overflow: auto;
   box-sizing: border-box;
   padding: 16px;
+  /* Keep caret away from bottom/keyboard */
+  padding-bottom: calc(
+    40px + env(safe-area-inset-bottom, 0px) + var(--kb-offset, 0px)
+  );
+  scroll-padding-bottom: calc(
+    40px + env(safe-area-inset-bottom, 0px) + var(--kb-offset, 0px)
+  );
   background: var(--bg, transparent);
   color: var(--fg, inherit);
 }
@@ -118,8 +127,58 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  /* 커서가 아래에 있을 때 키보드에 가리지 않도록 여유 */
+  scroll-margin-bottom: calc(
+    64px + env(safe-area-inset-bottom, 0px) + var(--kb-offset, 0px)
+  );
 }
 
+/* Compact typography across blocks (paragraphs, headings, lists, quotes) */
+.tiptap-editor .ProseMirror {
+  line-height: 1.8;
+}
+.tiptap-editor .ProseMirror p,
+.tiptap-editor .ProseMirror h1,
+.tiptap-editor .ProseMirror h2,
+.tiptap-editor .ProseMirror h3,
+.tiptap-editor .ProseMirror h4,
+.tiptap-editor .ProseMirror h5,
+.tiptap-editor .ProseMirror h6,
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol,
+.tiptap-editor .ProseMirror li,
+.tiptap-editor .ProseMirror blockquote,
+.tiptap-editor .ProseMirror pre {
+  margin: 0;
+}
+/* spacing between top-level blocks */
+.tiptap-editor .ProseMirror > * + * {
+  margin-top: 6px;
+}
+/* list item spacing */
+.tiptap-editor .ProseMirror li + li {
+  margin-top: 4px;
+}
+/* nested list indentation and tighter bullets */
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 1.5em;
+}
+/* heading line-heights slightly tighter */
+.tiptap-editor .ProseMirror h1,
+.tiptap-editor .ProseMirror h2,
+.tiptap-editor .ProseMirror h3 {
+  line-height: 2;
+}
+.tiptap-editor .ProseMirror h1 {
+  font-size: 40px;
+}
+.tiptap-editor .ProseMirror h2 {
+  font-size: 28px;
+}
+.tiptap-editor .ProseMirror h3 {
+  font-size: 20px;
+}
 /* Ensure each top-level block stretches full width regardless of content length */
 .tiptap-editor .ProseMirror > * {
   display: block;
@@ -183,17 +242,28 @@
 .bible-verse__line {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 .bible-verse__verse {
   color: var(--accent, #4c8bf5);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  flex: 0 0 auto; /* 수축 방지 */
+  min-width: 2ch; /* 1~999까지 한 열에 고정, 탭형 숫자 폭 */
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
 }
 .bible-verse__text {
   line-height: 1.6;
+  flex: 1 1 auto;
+  font-size: 15px;
 }
 .bible-verse--loading {
-  border: 1px dashed #bbb;
-  color: #777;
-  background: #fcfcfc;
+  /* loading state: keep same size but invisible content */
+  border: 1px solid var(--border, rgba(100, 116, 139, 0.28));
+  background: var(--card, #1a1f28);
 }
 .bible-verse--error {
   border: 1px solid #ffb3b3;
